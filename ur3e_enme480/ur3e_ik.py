@@ -24,22 +24,65 @@ class InverseKinematicsUR3e(Node):
 
     # Step 1: find gripper position relative to the base of UR3,
     # and set theta_5 equal to -pi/2
+    
+    x_grip = xWgrip + 0.15
+    y_grip = yWgrip - 0.15 
+    z_grip = zWgrip - 0.01 
+    
+    theta_5 = -(np.pi/2)
 
 
     # Step 2: find x_cen, y_cen, z_cen
+    
+    yaw = np.deg2rad(yaw_WgripDegree)
+    
+    x_cen = x_grip - 0.0535 * np.cos(yaw)
+    y_cen = y_grip - 0.0535 * np.sin(yaw)
+    z_cen = z_grip
 
 
     # Step 3: find theta_1
+    
+    r = np.sqrt(x_cen**2 + y_cen**2)
+
+    theta_big = np.arctan2(y_cen, x_cen)
+    theta_small = np.arcsin(0.131 / r)
+
+    theta_1 = theta_big - theta_small
 
 
     # Step 4: find theta_6 
 
+    theta_6 = np.pi / 2 - yaw + theta_1
 
     # Step 5: find x3_end, y3_end, z3_end
+    
+    r = np.sqrt(x_cen**2 + y_cen**2)
+
+    r_3end = np.sqrt(r**2 - 0.131**2) - 0.083
+
+    x_3end = r_3end * np.cos(theta_1)
+    y_3end = r_3end * np.sin(theta_1)
+    z_3end = z_cen + 0.151
 
 
     # Step 6: find theta_2, theta_3, theta_4
 
+    r = np.sqrt(x_3end**2 + y_3end**2)
+    h = z_3end - 0.152
+    D = np.sqrt(r**2 + h**2)
+    
+    theta_2_p1 = np.arctan2(h, r)
+    cos_theta2_p2 = (0.244**2 + D**2 - 0.213**2) / (2 * 0.244 * D)
+
+    theta_2_p2 = np.arccos(cos_theta2_p2)
+    
+    theta_2 =  -(theta_2_p1 + theta_2_p2)
+    
+    cos_theta3 = (D**2 - 0.244**2 - 0.213**2) / (2 * 0.244 * 0.213)
+    theta_3 = np.arccos(cos_theta3)
+    
+    theta_4 = -theta_2 - theta_3
 
     ##### Your Code Ends Here #####
 
