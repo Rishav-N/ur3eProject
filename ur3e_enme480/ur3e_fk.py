@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.duration import Duration
 from ur3e_mrc_msgs.msg import PositionUR3e, CommandUR3e
 import sys
 import math
@@ -32,11 +33,20 @@ class ForwardKinematicsUR3e(Node):
 
         # Create a CommandUR3e message
         # SET v AND a TO BE === 0.1
-
+        msg = CommandUR3e()
+        msg.destination = joint_positions
+        msg.v = 0.1
+        msg.a = 0.1
+        msg.io_0 = False
 
         
         # Publish the command
-
+        for _ in range(50):
+            if self.publisher_.get_subscription_count() > 0:
+                break
+            rclpy.spin_once(self, timeout_sec=0.1)
+        self.publisher_.publish(msg)
+        self.publisher_.wait_for_all_acked(Duration(seconds=2))
 
         ######################################### END OF YOUR CODE ########################################
         ### DO NOT CHANGE ###
@@ -54,12 +64,41 @@ class ForwardKinematicsUR3e(Node):
         # Calculate the FINAL TRANSFORMATION MATRIX here using DH parameters
 
         # Insert intermediate transformation matrices here ....
+        base_angle = 2.35619449  # radians
+        base_transform = np.array([
+            [1.0, 0.0, 0.0, 0.21213 * math.cos(base_angle)],
+            [0.0, 1.0, 0.0, 0.21213 * math.sin(base_angle)],
+            [0.0, 0.0, 1.0, 0.010],
+            [0.0, 0.0, 0.0, 1.0],
+        ])
 
-
+        # Standard DH: (a in metres, alpha in radians, d in metres, theta in radians).
+        # Rows 1-6 use the six joint angles; row 7 is a fixed tool transform.
+        # Standard DH puts joint i about z_(i-1): the first twist must
+        # separate the shoulder-pan and shoulder-lift axes.
+        # Use the corrected user frame assignment; all angular constants are radians.
+        # Base height 0.010 + joint-1 height 0.152 = world height 0.162 m.
+        dh_params = [
+            (0.0, -math.pi / 2, 0.152, joint_positions[0]),
+            (0.244, 0.0, 0.120, joint_positions[1]),
+            (0.213, 0.0, -0.093, joint_positions[2]),
+            (0.0, math.pi / 2, -0.104, joint_positions[3] + math.pi / 2),
+            (0.0, math.pi / 2, -0.083, joint_positions[4] + math.pi),
+            (0.0, 0.0, 0.0, joint_positions[5]),
+            (0.0, 0.0, -0.092, 0.0),
+        ]
 
         # Final transformation matrix
-        transform = np.eye(4)  # Replace with your final transformation matrix
-
+        transform = base_transform.copy()
+        for a, alpha, d, theta in dh_params:
+            ct, st = math.cos(theta), math.sin(theta)
+            ca, sa = math.cos(alpha), math.sin(alpha)
+            transform = transform @ np.array([
+                [ct, -st * ca, st * sa, a * ct],
+                [st, ct * ca, -ct * sa, a * st],
+                [0.0, sa, ca, d],
+                [0.0, 0.0, 0.0, 1.0],
+            ])
 
         ################################ YOUR CODE ENDS HERE #########################
         self.get_logger().info(f'Your DH Transformation Matrix:\n{transform}')
